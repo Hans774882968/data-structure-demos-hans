@@ -1,6 +1,6 @@
 [TOC]
 
-# 用C++编写Python扩展，并用setuptools打包自己的分发包
+# 为Python编写C++扩展，并用setuptools打包自己的分发包
 
 ## 引言
 
@@ -8,15 +8,25 @@
 
 [项目GitHub传送门](https://github.com/Hans774882968/data-structure-demos-hans)
 
+**作者：[hans774882968](https://blog.csdn.net/hans774882968)以及[hans774882968](https://juejin.cn/user/1464964842528888)以及[hans774882968](https://www.52pojie.cn/home.php?mod=space&uid=1906177)**
+
+本文52pojie：https://www.52pojie.cn/thread-1923720-1-1.html
+
+本文juejin：https://juejin.cn/post/7368319486778703898
+
+本文CSDN：https://blog.csdn.net/hans774882968/article/details/138812416
+
 ## 环境
 
 - Windows10 VSCode
 - Python 3.7.6 pytest 7.4.4 setuptools 68.0.0
 - `g++.exe (x86_64-win32-seh-rev1, Built by MinGW-Builds project) 13.1.0` from [here](https://whitgit.whitworth.edu/tutorials/installing_mingw_64)
 
+setuptools官方文档建议舍弃`setup.py`（setup脚本）的写法，转而使用一个叫[build](https://build.pypa.io/en/latest/installation.html)的命令行工具。但该工具只支持到Python3.8，所以本文依旧使用`setup.py`。
+
 ## 制作源码包
 
-我们可以用`setuptools`制作源码包。项目目录：
+顾名思义，源码包就是不在打包阶段进行编译工作，到`pip install`阶段再执行。根据[参考链接1](https://blog.csdn.net/hxxjxw/article/details/124298543)，我们可以用`setuptools`制作源码包。首先我们新建一个项目，目录如下：
 
 ```
 .
@@ -26,22 +36,24 @@
       __init__.py 留空就行。为了让 setuptools 扫描到这个包，必须要有
 ```
 
-`setup.py`：
+`setup.py`可以参考[setup脚本文档传送门](https://setuptools.pypa.io/en/latest/deprecated/distutils/setupscript.html)来写：
 
 ```python
-from setuptools import setup, find_packages, Extension
+from setuptools import setup, find_packages
 
 setup(
     name='data-structure-demos-hans',
     version='0.1',
     description='provide some data structures for competitive programming',
-    author='hans',
-    author_email='774882968@qq.com',
+    author='<author name>',
+    author_email='<your email>',
     url='https://github.com/Hans774882968/data-structure-demos-hans',
     packages=find_packages('.'),
     license='MIT',
 )
 ```
+
+`find_packages`用来查找当前项目有哪些包，[文档](https://setuptools.pypa.io/en/latest/userguide/package_discovery.html#custom-discovery)。`find_packages('.')`只指定了`where='.'`，表示从当前目录开始扫描，把所有含有`__init__.py`的目录都当成包。
 
 制作源码包命令：`python setup.py sdist`。
 
@@ -74,9 +86,9 @@ Creating tar archive
 removing 'data-structure-demos-hans-0.1' (and everything under it)
 ```
 
-运行完毕后生成dist目录和data_structure_demos_hans.egg-info目录。`dist`目录下有`data-structure-demos-hans-0.1.tar.gz`，这就是我们的源码包。
+运行完毕后生成`dist`目录和`data_structure_demos_hans.egg-info`目录。后者暂时不用理会，而`dist`目录下有`data-structure-demos-hans-0.1.tar.gz`，这就是我们的源码包。
 
-接下来运行`pip install data-structure-demos-hans-0.1.tar.gz`安装刚刚打好的包：
+接下来运行`pip install data-structure-demos-hans-0.1.tar.gz`安装我们刚刚打好的包：
 
 ```
 Looking in indexes: https://mirrors.aliyun.com/pypi/simple
@@ -94,12 +106,12 @@ Successfully installed data-structure-demos-hans-0.1
 运行`pip list`可看到这一行`data-structure-demos-hans 0.1`已经出现。此时进入`<python install dir>\Lib\site-packages`可以看到`binary_indexed_tree`文件夹和`data_structure_demos_hans-0.1.dist-info`文件夹。因此，调用树状数组的代码可以这么写：
 
 ```python
-from binary_indexed_tree.bit import BIT
+from binary_indexed_tree.bit import BITPy
 
 
 def main():
     a1 = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-    b1 = BIT(len(a1))
+    b1 = BITPy(len(a1))
     for i, v in enumerate(a1):
         b1.add(i + 1, v)
     for i in range(1, len(a1) + 1):
@@ -110,7 +122,7 @@ if __name__ == '__main__':
     main()
 ```
 
-## C/C++扩展 Hello World
+## C/C++扩展 Hello World：实现一些函数给Python层调用
 
 新增文件夹`cpp_extension_hello`：
 
@@ -210,6 +222,23 @@ PyMODINIT_FUNC PyInit_hello_cpp_extension() {
 compiler=mingw32
 ```
 
+如何查看支持的编译器：根据[参考链接6](https://setuptools.pypa.io/en/latest/deprecated/distutils/configfile.html)，输入以下命令即可。
+
+```bash
+python setup.py build_ext --help-compiler
+```
+
+输出示例：
+
+```
+List of available compilers:
+  --compiler=bcpp     Borland C++ Compiler
+  --compiler=cygwin   Cygwin port of GNU C Compiler for Win32
+  --compiler=mingw32  Mingw32 port of GNU C Compiler for Win32
+  --compiler=msvc     Microsoft Visual C++
+  --compiler=unix     standard UNIX-style compiler
+```
+
 之后，我们执行`python setup.py sdist`并不会编译cpp，因为这个编译过程发生在`pip install data-structure-demos-hans-0.1.tar.gz`阶段。接下来如果不出意外的话，就要出意外了TAT。`pip install`报错：
 
 ```
@@ -281,7 +310,7 @@ recursive-include * *.pyi
 
 Q：不需要加一个空的`py.typed`文件？A：是的。本项目场景比较简单，暂时不需要理会PEP-561规范。
 
-## 用C++扩展实现树状数组
+## 在C++扩展中定义Python数据结构实战：用C++扩展实现树状数组
 
 `binary_indexed_tree`目录新增两个文件`bit.cpp`和`bit_cpp_extension.pyi`：
 
@@ -535,7 +564,7 @@ static PyMethodDef cppExtensionMethods[] = {
 };
 ```
 
-`dec_lower_bound`和`dec_upper_bound`几乎完全一致，只有要用到的比较运算符不一样，所以我抽象出了`dec_binary_search`方法，并用`op`区分是哪个方法，`op == Py_GT`的为`dec_lower_bound`，`op == Py_GE`的为`dec_upper_bound`。
+`dec_lower_bound`和`dec_upper_bound`几乎完全一致，只有要用到的比较运算符不一样，所以我抽象出了`dec_binary_search`方法，并用`op`区分是哪个方法，`op == Py_GT`的为`dec_lower_bound`，`op == Py_GE`的为`dec_upper_bound`。这里选用`Python.h`提供的`Py_GT, Py_GE`宏是在给下一节实现任意可比较对象的数组的二分查找做铺垫。
 
 ```cpp
 static bool jdg_arr(PyObject* a_py) {
@@ -657,7 +686,78 @@ if __name__ == '__main__':
 
 ### 支持任意可比较对象的数组的二分查找
 
-TODO
+首先，原本的`int x = 0`参数要改为`PyObject*`：
+
+```cpp
+  PyObject* a_py = nullptr;
+  PyObject* x = nullptr;
+  if (!PyArg_ParseTuple(args, "OO", &a_py, &x)) {
+    PyErr_SetString(
+        PyExc_ValueError,
+        "Plz pass a comparable object array and a comparable object");
+    return nullptr;
+  }
+  // ...
+```
+
+接着微调参数校验逻辑，不是很重要，在此不赘述。然后我们来看本章的关键API：`int PyObject_RichCompareBool(PyObject *, PyObject *, int)`。第三个参数是运算符，`Py_GT, Py_GE`分别表示`>, >=`。返回值为`1, 0, -1`，0和1就相当于bool结果，-1表示由对象没有重载相关运算符等原因导致比较失败。如果不处理-1这个返回值，会导致Python解释器抛出`SystemError`，取`e.__cause__`可以拿到`TypeError`，比如：`TypeError: '>' not supported between instances of 'Person' and 'Person'`。我的代码处理了这种情况，因此仍然可以返回`ValueError`，比如：`ValueError: Comparison error. Index: 0. Operator: ">"`。
+
+改动到的核心代码：
+
+```cpp
+  auto get_cmp_error_info = [op](int idx) {
+    string s = "Comparison error. Index: ";
+    s += to_string(idx);
+    s += ". Operator: \"";
+    if (op == Py_GT)
+      s += ">";
+    else
+      s += ">=";
+    s += "\"";
+    return s;
+  };
+
+  int n = PyList_GET_SIZE(a_py);
+  int l = 0, r = n;
+  while (l < r) {
+    int mid = (l + r) >> 1;
+    PyObject* num_py = PyList_GET_ITEM(a_py, mid);
+    int cmp_res = PyObject_RichCompareBool(num_py, x, op);
+    if (cmp_res == -1) {
+      string cmp_err_info = get_cmp_error_info(mid);
+      PyErr_SetString(PyExc_ValueError, cmp_err_info.c_str());
+      return nullptr;
+    }
+    if (cmp_res) {
+      l = mid + 1;
+    } else {
+      r = mid;
+    }
+  }
+```
+
+使用：
+
+```python
+from bisect_decr.bisect_decr_cpp import dec_lower_bound, dec_upper_bound
+
+
+def test_comparable_object_array():
+    class Person():
+        def __init__(self, age: int) -> None:
+            self.age = age
+
+        def __ge__(self, other):
+            return self.age >= other.age
+
+        def __gt__(self, other):
+            return self.age > other.age
+
+    persons = [Person(60), Person(25), Person(18), Person(18), Person(6)]
+    test_arr = [Person(100), Person(60), Person(33), Person(25), Person(23), Person(18), Person(12), Person(6), Person(4)]
+    res_l = [dec_lower_bound(persons, v) for v in test_arr]
+    assert res_l == [0, 0, 1, 1, 2, 2, 4, 4, 5]
+```
 
 ## 单测：pytest
 
@@ -690,3 +790,4 @@ pytest --html=coverage/report.html
 3. https://codedamn.com/news/python/implementing-custom-python-c-extensions-step-by-step-guide
 4. Include type information by default (`*.pyi`, `py.typed`)：https://github.com/pypa/setuptools/issues/3136
 5. 使用c/c++编写python扩展（三）：自定义Python内置类型：https://zhuanlan.zhihu.com/p/106773873
+6. https://setuptools.pypa.io/en/latest/deprecated/distutils/configfile.html
