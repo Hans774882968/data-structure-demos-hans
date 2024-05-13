@@ -1,6 +1,5 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
-#include <iostream>
 
 static PyMethodDef cppExtensionMethods[] = {
     {nullptr, nullptr, 0, nullptr}  // Sentinel is required

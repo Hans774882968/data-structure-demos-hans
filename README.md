@@ -535,7 +535,7 @@ static PyMethodDef cppExtensionMethods[] = {
 };
 ```
 
-`dec_lower_bound`和`dec_upper_bound`几乎完全一致，我们以`dec_lower_bound`为例。
+`dec_lower_bound`和`dec_upper_bound`几乎完全一致，只有要用到的比较运算符不一样，所以我抽象出了`dec_binary_search`方法，并用`op`区分是哪个方法，`op == Py_GT`的为`dec_lower_bound`，`op == Py_GE`的为`dec_upper_bound`。
 
 ```cpp
 static bool jdg_arr(PyObject* a_py) {
@@ -544,19 +544,10 @@ static bool jdg_arr(PyObject* a_py) {
                     "Plz pass an integer array and an integer");
     return false;
   }
-  int n = PyList_GET_SIZE(a_py);
-  for (size_t i = 0; i < n; i++) {
-    PyObject* num_py = PyList_GET_ITEM(a_py, i);
-    if (!PyLong_Check(num_py)) {
-      PyErr_SetString(PyExc_ValueError,
-                      "Every elements of the array should be integer");
-      return false;
-    }
-  }
   return true;
 }
 
-static PyObject* dec_lower_bound(PyObject* self, PyObject* args) {
+static PyObject* dec_binary_search(PyObject* self, PyObject* args, int op) {
   PyObject* a_py = nullptr;
   int x = 0;
   if (!PyArg_ParseTuple(args, "Oi", &a_py, &x)) {
@@ -569,17 +560,23 @@ static PyObject* dec_lower_bound(PyObject* self, PyObject* args) {
   }
 
   int n = PyList_GET_SIZE(a_py);
-  std::vector<int> a;
-  for (size_t i = 0; i < n; i++) {
-    PyObject* num_py = PyList_GET_ITEM(a_py, i);
-    int num = PyLong_AS_LONG(num_py);
-    a.push_back(num);
-  }
-
   int l = 0, r = n;
   while (l < r) {
     int mid = (l + r) >> 1;
-    if (a[mid] > x) {
+    PyObject* num_py = PyList_GET_ITEM(a_py, mid);
+    if (!PyLong_Check(num_py)) {
+      PyErr_SetString(PyExc_ValueError,
+                      "Every elements of the array should be integer");
+      return nullptr;
+    }
+    int num = PyLong_AS_LONG(num_py);
+    bool cmp_res = false;
+    if (op == Py_GT) {
+      cmp_res = num > x;
+    } else {
+      cmp_res = num >= x;
+    }
+    if (cmp_res) {
       l = mid + 1;
     } else {
       r = mid;
@@ -589,12 +586,21 @@ static PyObject* dec_lower_bound(PyObject* self, PyObject* args) {
   PyObject* res_py = PyLong_FromLong(l);
   return res_py;
 }
+
+static PyObject* dec_lower_bound(PyObject* self, PyObject* args) {
+  return dec_binary_search(self, args, Py_GT);
+}
+
+static PyObject* dec_upper_bound(PyObject* self, PyObject* args) {
+  return dec_binary_search(self, args, Py_GE);
+}
 ```
 
 在此我们看到一个具有普适性的规律：C++代码和Python代码属于两个抽象层，因此我们的工作流程一般如下：先把Python抽象层的语言翻译为C++抽象层的语言，接着判断参数的合法性，然后做些计算，最后再翻译回Python抽象层的语言。
 
 1. 抽象出`jdg_arr`的思路同上一节。
 2. `PyList_Check, PyLong_Check`用于校验参数类型，`PyList_GET_SIZE`拿列表长度，`PyList_GET_ITEM`根据下标拿列表元素。
+3. 为了保证复杂度为`O(logn)`，不能遍历整个数组，于是检验单个元素的类型的逻辑不得不和二分查找的逻辑耦合在一起。
 
 最后按惯例，展示一下其用法：
 

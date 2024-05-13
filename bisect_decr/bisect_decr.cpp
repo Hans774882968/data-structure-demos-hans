@@ -1,7 +1,5 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
-#include <iostream>
-#include <vector>
 
 const char* lower_bound_intro =
     "The return value i is such that all e in a[:i] have e > x, and all e in "
@@ -16,19 +14,10 @@ static bool jdg_arr(PyObject* a_py) {
                     "Plz pass an integer array and an integer");
     return false;
   }
-  int n = PyList_GET_SIZE(a_py);
-  for (size_t i = 0; i < n; i++) {
-    PyObject* num_py = PyList_GET_ITEM(a_py, i);
-    if (!PyLong_Check(num_py)) {
-      PyErr_SetString(PyExc_ValueError,
-                      "Every elements of the array should be integer");
-      return false;
-    }
-  }
   return true;
 }
 
-static PyObject* dec_lower_bound(PyObject* self, PyObject* args) {
+static PyObject* dec_binary_search(PyObject* self, PyObject* args, int op) {
   PyObject* a_py = nullptr;
   int x = 0;
   if (!PyArg_ParseTuple(args, "Oi", &a_py, &x)) {
@@ -41,17 +30,23 @@ static PyObject* dec_lower_bound(PyObject* self, PyObject* args) {
   }
 
   int n = PyList_GET_SIZE(a_py);
-  std::vector<int> a;
-  for (size_t i = 0; i < n; i++) {
-    PyObject* num_py = PyList_GET_ITEM(a_py, i);
-    int num = PyLong_AS_LONG(num_py);
-    a.push_back(num);
-  }
-
   int l = 0, r = n;
   while (l < r) {
     int mid = (l + r) >> 1;
-    if (a[mid] > x) {
+    PyObject* num_py = PyList_GET_ITEM(a_py, mid);
+    if (!PyLong_Check(num_py)) {
+      PyErr_SetString(PyExc_ValueError,
+                      "Every elements of the array should be integer");
+      return nullptr;
+    }
+    int num = PyLong_AS_LONG(num_py);
+    bool cmp_res = false;
+    if (op == Py_GT) {
+      cmp_res = num > x;
+    } else {
+      cmp_res = num >= x;
+    }
+    if (cmp_res) {
       l = mid + 1;
     } else {
       r = mid;
@@ -62,38 +57,12 @@ static PyObject* dec_lower_bound(PyObject* self, PyObject* args) {
   return res_py;
 }
 
+static PyObject* dec_lower_bound(PyObject* self, PyObject* args) {
+  return dec_binary_search(self, args, Py_GT);
+}
+
 static PyObject* dec_upper_bound(PyObject* self, PyObject* args) {
-  PyObject* a_py = nullptr;
-  int x = 0;
-  if (!PyArg_ParseTuple(args, "Oi", &a_py, &x)) {
-    PyErr_SetString(PyExc_ValueError,
-                    "Plz pass an integer array and an integer");
-    return nullptr;
-  }
-  if (!jdg_arr(a_py)) {
-    return nullptr;
-  }
-
-  int n = PyList_GET_SIZE(a_py);
-  std::vector<int> a;
-  for (size_t i = 0; i < n; i++) {
-    PyObject* num_py = PyList_GET_ITEM(a_py, i);
-    int num = PyLong_AS_LONG(num_py);
-    a.push_back(num);
-  }
-
-  int l = 0, r = n;
-  while (l < r) {
-    int mid = (l + r) >> 1;
-    if (a[mid] >= x) {
-      l = mid + 1;
-    } else {
-      r = mid;
-    }
-  }
-
-  PyObject* res_py = PyLong_FromLong(l);
-  return res_py;
+  return dec_binary_search(self, args, Py_GE);
 }
 
 static PyMethodDef cppExtensionMethods[] = {
