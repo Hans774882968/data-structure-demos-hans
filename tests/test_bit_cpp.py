@@ -1,5 +1,20 @@
 import pytest
+from random import randint
 from binary_indexed_tree.bit_cpp_extension import BIT
+
+FRAGRANT_NUMBER = 114514
+
+
+class BfAdd():
+    def __init__(self, n: int) -> None:
+        self.n = n
+        self.a = [0] * (n + 1)
+
+    def add(self, idx: int, v: int) -> None:
+        self.a[idx] += v
+
+    def sum(self, idx: int) -> int:
+        return sum(self.a[1:idx + 1])
 
 
 def test_bit_cpp():
@@ -27,3 +42,23 @@ def test_bit_cpp_errors():
     with pytest.raises(ValueError) as e_info:
         b2.add(21, 10)
     assert 'idx should be less than or equal to array size' in str(e_info.value)
+
+
+def test_random_int_array():
+    n = FRAGRANT_NUMBER // 14
+    a = [randint(1, n) for _ in range(n)]
+    additions = [(randint(1, n), randint(1, n)) for _ in range(n)]
+    b = BIT(n)
+    bf_b = BfAdd(n)
+    for i, v in enumerate(a):
+        b.add(i + 1, v)
+        bf_b.add(i + 1, v)
+    for i, (idx, val) in enumerate(additions):
+        b.add(idx, val)
+        bf_b.add(idx, val)
+        if i % 5 != 0:
+            continue
+        idx = randint(1, n)
+        res = b.sum(idx)
+        bf_res = bf_b.sum(idx)
+        assert res == bf_res

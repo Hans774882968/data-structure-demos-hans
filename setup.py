@@ -1,5 +1,13 @@
-
 from setuptools import setup, find_packages, Extension
+
+
+def get_long_description():
+    with open('README.md', 'r', encoding='utf-8') as f:
+        content = f.read()
+        return content
+
+
+long_description = get_long_description()
 
 extensions = [
     Extension(
@@ -27,8 +35,10 @@ extensions = [
 
 setup(
     name='data-structure-demos-hans',
-    version='0.1',
+    version='0.2.0',
     description='provide some data structures for competitive programming',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     author='hans',
     author_email='774882968@qq.com',
     url='https://github.com/Hans774882968/data-structure-demos-hans',

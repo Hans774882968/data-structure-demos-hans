@@ -1,6 +1,6 @@
 [TOC]
 
-# 为Python编写C++扩展，并用setuptools打包自己的分发包
+# 为Python编写C++扩展，用setuptools打包自己的分发包，并上传到PyPI
 
 ## 引言
 
@@ -23,6 +23,61 @@
 - `g++.exe (x86_64-win32-seh-rev1, Built by MinGW-Builds project) 13.1.0` from [here](https://whitgit.whitworth.edu/tutorials/installing_mingw_64)
 
 setuptools官方文档建议舍弃`setup.py`（setup脚本）的写法，转而使用一个叫[build](https://build.pypa.io/en/latest/installation.html)的命令行工具。但该工具只支持到Python3.8，所以本文依旧使用`setup.py`。
+
+## Usage of data-structure-demos-hans
+
+Install: `pip install data-structure-demos-hans`
+
+binary indexed tree:
+
+```python
+from binary_indexed_tree.bit_cpp_extension import BIT
+
+
+def bit_cpp(a: List[int]):
+    b1 = BIT(len(a))
+    for i, v in enumerate(a):
+        b1.add(i + 1, v)
+    for i in range(1, len(a) + 1):
+        print(b1.sum(i))
+    b1.add(9, 113964)
+    print(b1.sum(len(a)))
+
+
+bit_cpp([i * 10 + 10 for i in range(10)])
+```
+
+bisect_decr:
+
+```python
+from bisect_decr.bisect_decr_cpp import dec_lower_bound, dec_upper_bound
+
+
+def test_dec_lower_bound_unique():
+    a = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]
+    test_arr = [101, 61, 9, 100, 60, 10]
+    res = [dec_lower_bound(a, v) for v in test_arr]
+    assert res == [0, 4, 10, 0, 4, 9]
+
+
+def test_comparable_object_array():
+    class Person():
+        def __init__(self, age: int) -> None:
+            self.age = age
+
+        def __ge__(self, other):
+            return self.age >= other.age
+
+        def __gt__(self, other):
+            return self.age > other.age
+
+    persons = [Person(60), Person(25), Person(18), Person(18), Person(6)]
+    test_arr = [Person(100), Person(60), Person(33), Person(25), Person(23), Person(18), Person(12), Person(6), Person(4)]
+    res_l = [dec_lower_bound(persons, v) for v in test_arr]
+    assert res_l == [0, 0, 1, 1, 2, 2, 4, 4, 5]
+    res_u = [dec_upper_bound(persons, v) for v in test_arr]
+    assert res_u == [0, 1, 1, 2, 2, 4, 4, 5, 5]
+```
 
 ## 制作源码包
 
@@ -122,6 +177,14 @@ if __name__ == '__main__':
     main()
 ```
 
+## 制作wheel包（二进制包）
+
+代码不需要变，执行`python setup.py bdist_wheel`即可编译出二进制包。同理，执行`python setup.py sdist bdist_wheel`可以同时编译出源码包和二进制包。
+
+编译出二进制包的同时还会生成一个build文件夹，这个文件夹的内容可以无视。`dist`文件夹下会生成`data_structure_demos_hans-0.1-cp37-cp37m-win_amd64.whl`。`.whl`文件是`zip`压缩包，如果你好奇里面的内容，可以改文件名后缀直接查看。
+
+安装whl包命令：`pip install --force-reinstall data_structure_demos_hans-0.1-cp37-cp37m-win_amd64.whl`。
+
 ## C/C++扩展 Hello World：实现一些函数给Python层调用
 
 新增文件夹`cpp_extension_hello`：
@@ -180,28 +243,36 @@ setup(
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <iostream>
+using std::cout;
+using std::endl;
 
 static PyObject* cpp_extension_hello(PyObject* self, PyObject* args) {
-  const char* name;
-
+  const char* name = nullptr;
   if (!PyArg_ParseTuple(args, "s", &name)) {
     return nullptr;
   }
 
-  std::cout << "[cpp_extension_hello] hello, " << name << std::endl;
+  cout << "[cpp_extension_hello] hello, " << name << endl;
 
-  Py_RETURN_NONE;
+  PyObject* res_dict = PyDict_New();
+  PyObject* name_py = Py_BuildValue("s", name);
+  PyObject* age_py = Py_BuildValue("i", 18);
+  PyDict_SetItemString(res_dict, "name", name_py);
+  PyDict_SetItemString(res_dict, "age", age_py);
+
+  return res_dict;
 }
 
-static PyMethodDef cppExtensionMethods[] = {
+static PyMethodDef cpp_extension_methods[] = {
     {"hello_from_cpp_extension", cpp_extension_hello, METH_VARARGS,
      "Print a hello message"},
     {NULL, NULL, 0, NULL}  // Sentinel is required
 };
 
-static struct PyModuleDef cpp_extension_module = {PyModuleDef_HEAD_INIT,
-                                                  "hello_cpp_extension", NULL,
-                                                  -1, cppExtensionMethods};
+static struct PyModuleDef cpp_extension_module = {
+    PyModuleDef_HEAD_INIT, "hello_cpp_extension", NULL, -1,
+    cpp_extension_methods  // comment to regulate the behavior of clang-format
+};
 
 PyMODINIT_FUNC PyInit_hello_cpp_extension() {
   return PyModule_Create(&cpp_extension_module);
@@ -212,8 +283,9 @@ PyMODINIT_FUNC PyInit_hello_cpp_extension() {
 
 1. 这个文件格式有一些要求，我模仿着[参考链接3](https://codedamn.com/news/python/implementing-custom-python-c-extensions-step-by-step-guide)写的。
 2. `static struct PyModuleDef cpp_extension_module`的`m_name`应该要和`setup.py`指定的一致？TODO
-3. `cppExtensionMethods`的哨兵是必要的，否则运行时会报错`module functions cannot set METH_CLASS or METH_STATIC`。
+3. `cpp_extension_methods`的哨兵是必要的，否则运行时会报错`module functions cannot set METH_CLASS or METH_STATIC`。
 4. `PyMethodDef.ml_name`指定了模块调用者使用的方法名为`hello_from_cpp_extension`。
+5. 如果函数要返回None，就使用`Py_RETURN_NONE;`。这里函数返回一个`dict`，意在简单体验一下Python层和C++层通信的API。
 
 在此我希望用我本地的g++来编译cpp，所以需要建一个`setup.cfg`：
 
@@ -281,11 +353,92 @@ from cpp_extension_hello.hello_cpp_extension import hello_from_cpp_extension
 
 
 def main():
-    hello_from_cpp_extension('hans')
+    res_dict = hello_from_cpp_extension('hans')
+    print(res_dict)
 
 
 if __name__ == '__main__':
     main()
+```
+
+### 逆向：查看pyd文件的内容并调用之
+
+pyd文件是dll文件，可以直接用IDA打开并分析。用IDA打开后，熟悉的`PyInit_hello_cpp_extension`就映入眼帘了。
+
+```cpp
+__int64 __fastcall PyInit_hello_cpp_extension(__int64 a1, __int64 a2) {
+  return PyModule_Create2(a1, a2, 1013LL, &unk_3B4BF3020);
+}
+```
+
+而我们导出的`hello_from_cpp_extension`函数就在它隔壁。
+
+```cpp
+__int64 __fastcall sub_3B4BF1370(const char *a1, __int64 a2, __int64 a3)
+{
+  size_t v3; // rax
+  __int64 v4; // rdx
+  _BYTE *v5; // rbx
+  char v6; // dl
+  __int64 v7; // rax
+  __int64 v8; // rdx
+  __int64 v9; // rbx
+  __int64 v10; // rdi
+  __int64 v11; // rsi
+  __int64 v13[4]; // [rsp+28h] [rbp-20h] BYREF
+
+  v13[0] = 0LL;
+  if ( !(unsigned int)PyArg_ParseTuple_SizeT(a1, a2, &unk_3B4BF4000, a3, v13) )
+    return 0LL;
+  ZSt16__ostream_insertIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_PKS3_x(
+    a1,
+    a2,
+    "[cpp_extension_hello] hello, ",
+    &ZSt4cout,
+    29LL);
+  if ( v13[0] )
+  {
+    v3 = strlen(a1);
+    ZSt16__ostream_insertIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_PKS3_x(a1, a2, v13[0], &ZSt4cout, v3);
+  }
+  else
+  {
+    ZNSt9basic_iosIcSt11char_traitsIcEE5clearESt12_Ios_Iostate(
+      a1,
+      a2,
+      *(_DWORD *)((char *)&ZSt4cout + *((_QWORD *)&ZSt4cout - 3) + 32) | 1u);
+  }
+  v4 = *((_QWORD *)&ZSt4cout - 3);
+  v5 = *(_BYTE **)((char *)&ZSt4cout + v4 + 240);
+  if ( !v5 )
+    ZSt16__throw_bad_castv();
+  if ( v5[56] )
+  {
+    v6 = v5[67];
+  }
+  else
+  {
+    ZNKSt5ctypeIcE13_M_widen_initEv(a1, a2, v4, *(_QWORD *)((char *)&ZSt4cout + v4 + 240));
+    v6 = (*(__int64 (__fastcall **)(const char *, __int64, __int64, _BYTE *))(*(_QWORD *)v5 + 48LL))(a1, a2, 10LL, v5);
+  }
+  v7 = ZNSo3putEc(a1, a2, (unsigned int)v6, &ZSt4cout);
+  ZNSo5flushEv(a1, a2, v8, v7);
+  v9 = PyDict_New();
+  v10 = Py_BuildValue_SizeT(a1, Py_BuildValue_SizeT, v13[0], &unk_3B4BF4000);
+  v11 = Py_BuildValue_SizeT(v10, Py_BuildValue_SizeT, 18LL, "i");
+  PyDict_SetItemString(PyDict_SetItemString, v11, "name", v9, v10);
+  PyDict_SetItemString(PyDict_SetItemString, v11, "age", v9, v11);
+  return v9;
+}
+```
+
+我们将文件名改为`pyd_demo.cp37-win_amd64.pyd`或`pyd_demo.pyd`，并用PETools修改其导出表的PyInit函数名为`PyInit_pyd_demo`，然后就可以在同一文件夹下写Python代码调用了。
+
+```python
+from pyd_demo import hello_from_cpp_extension
+
+res_dict = hello_from_cpp_extension('hans')
+print(res_dict)
 ```
 
 ### Optional：类型提示支持
@@ -293,7 +446,7 @@ if __name__ == '__main__':
 虽然调用成功了，但是没有类型提示，不太友好。首先我们需要加一个`.pyi`文件。`.pyi`文件的名字要和import的文件名一致，所以文件名是`hello_cpp_extension`。`hello_cpp_extension.pyi`：
 
 ```python
-def hello_from_cpp_extension(name: str) -> None:
+def hello_from_cpp_extension(name: str) -> dict:
     pass
 ```
 
@@ -557,7 +710,7 @@ const char* upper_bound_intro =
     "The return value i is such that all e in a[:i] have e >= x, and all e in "
     "a[i:] have e < x";
 
-static PyMethodDef cppExtensionMethods[] = {
+static PyMethodDef cpp_extension_methods[] = {
     {"dec_lower_bound", dec_lower_bound, METH_VARARGS, lower_bound_intro},
     {"dec_upper_bound", dec_upper_bound, METH_VARARGS, upper_bound_intro},
     {NULL, NULL, 0, NULL}  // Sentinel is required
@@ -781,6 +934,62 @@ pytest --version
 
 ```bash
 pytest --html=coverage/report.html
+```
+
+## 上传到PyPI
+
+接下来开始污染PyPI！PyPI为了便于大家练习上传过程，所以还同步提供了功能与PyPi完全一样但相互隔离的测试环境：https://test.pypi.org/。
+
+1. 注册账号、激活Email。
+2. 现在PyPI也开始逼你激活Two factor authentication (2FA)了。第一步，网站会给你一些16位的Recovery Code，你要找个地方保存它们。第二步是输入其中一个Recovery Code。第三步是点击`Add 2FA with authentication application`按钮，用Authenticator APP（IPhone）扫描二维码，然后输入验证码。
+3. 生成API Token。[入口](https://test.pypi.org/manage/account/#api-tokens)。Token名随意，Scope选All Projects。
+
+安装twine：`pip install twine`。验证twine已经安装成功：`twine --version`。
+
+用twine将包上传到测试环境：
+
+```bash
+twine upload --repository testpypi dist/*
+```
+
+运行以上命令后，如果你的电脑没创建`<%homepath%>/.pypirc`，会出现Enter your username和Enter your password提示，其中username输入`__token__`（就是这个字符串，不是Token名或其他），password输入token值，然后按Enter。根据[帮助文档](https://test.pypi.org/help#apitoken)，也可以创建`<%homepath%>/.pypirc`：
+
+```properties
+[testpypi]
+  username = __token__
+  password = <api token>
+```
+
+上传到正式环境：
+
+```bash
+twine upload dist/*
+```
+
+上传成功后就能用pip安装了。
+
+注意点：
+
+1. 根据帮助文档，你想再次上传一个更改过或没更改过的包但不修改版本号都是不可能的。
+2. `The author of this package has not provided a project description`指的是你没有指定`long_description`。
+
+```python
+from setuptools import setup, find_packages, Extension
+
+
+def get_long_description():
+    with open('README.md', 'r', encoding='utf-8') as f:
+        content = f.read()
+        return content
+
+
+long_description = get_long_description()
+
+setup(
+    # ...
+    long_description=long_description,
+    long_description_content_type='text/markdown',
+)
 ```
 
 ## 参考资料

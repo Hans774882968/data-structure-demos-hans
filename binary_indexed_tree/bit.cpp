@@ -1,7 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-static PyMethodDef cppExtensionMethods[] = {
+static PyMethodDef cpp_extension_methods[] = {
     {nullptr, nullptr, 0, nullptr}  // Sentinel is required
 };
 
@@ -91,7 +91,9 @@ static PyTypeObject BitType = {
 };
 
 static struct PyModuleDef cpp_extension_module = {
-    PyModuleDef_HEAD_INIT, "bit_cpp_extension", NULL, -1, cppExtensionMethods};
+    PyModuleDef_HEAD_INIT, "bit_cpp_extension", NULL, -1,
+    cpp_extension_methods  // comment to regulate the behavior of clang-format
+};
 
 PyMODINIT_FUNC PyInit_bit_cpp_extension() {
   PyObject* m = nullptr;

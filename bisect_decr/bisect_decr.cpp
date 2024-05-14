@@ -76,14 +76,14 @@ static PyObject* dec_upper_bound(PyObject* self, PyObject* args) {
   return dec_binary_search(self, args, Py_GE);
 }
 
-static PyMethodDef cppExtensionMethods[] = {
+static PyMethodDef cpp_extension_methods[] = {
     {"dec_lower_bound", dec_lower_bound, METH_VARARGS, lower_bound_intro},
     {"dec_upper_bound", dec_upper_bound, METH_VARARGS, upper_bound_intro},
     {NULL, NULL, 0, NULL}  // Sentinel is required
 };
 
 static struct PyModuleDef cpp_extension_module = {
-    PyModuleDef_HEAD_INIT, "bisect_decr_cpp", NULL, -1, cppExtensionMethods};
+    PyModuleDef_HEAD_INIT, "bisect_decr_cpp", NULL, -1, cpp_extension_methods};
 
 PyMODINIT_FUNC PyInit_bisect_decr_cpp() {
   return PyModule_Create(&cpp_extension_module);
